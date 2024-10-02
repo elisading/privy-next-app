@@ -58,7 +58,7 @@ function MyApp({ Component, pageProps }: AppProps) {
         "theme": "#FFFFFF",
         "showWalletLoginFirst": false,
         "logo": "https://auth.privy.io/logos/privy-logo.png",
-        "walletChainType": "solana-only"
+        "walletChainType": "ethereum-and-solana",
       },
       "loginMethods": [
         "email",
@@ -71,7 +71,7 @@ function MyApp({ Component, pageProps }: AppProps) {
         }
       },
       "embeddedWallets": {
-        "createOnLogin": "off", // "all-users" | "users-without-wallets" | "off"
+        "createOnLogin": "all-users", // "all-users" | "users-without-wallets" | "off"
         "requireUserPasswordOnCreate": false
         /**
          * @deprecated. Instead, use the server-driven configuration found in the Privy console: https://dashboard.privy.io/apps/YOUR_APP_ID/embedded.
