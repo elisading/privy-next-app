@@ -1,6 +1,6 @@
 import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
-import { getAccessToken, usePrivy, useSolanaWallets } from "@privy-io/react-auth";
+import { getAccessToken, usePrivy, useSolanaWallets, type WalletWithMetadata} from "@privy-io/react-auth";
 import { clusterApiUrl, Connection, PublicKey, SystemProgram, Transaction } from "@solana/web3.js";
 import Head from "next/head";
 
@@ -21,6 +21,7 @@ export default function DashboardPage() {
   const [transactionResult, setTransactionResult] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0); // Trigger for refreshing user object
+  const [balance, setBalance] = useState<number | null>(null);
   const router = useRouter();
   const {
     ready,
@@ -42,6 +43,61 @@ export default function DashboardPage() {
       router.push("/");
     }
   }, [ready, authenticated, router]);
+
+  const initialize = () => {
+    window.addEventListener("message", onMessageReceived);
+  };
+
+  useEffect(() => {
+    initialize();
+
+    return () => {
+      window.removeEventListener("message", onMessageReceived);
+    };
+  }, []); 
+
+  const onMessageReceived = (event: any) => {
+    let message = event.data;
+
+    if (message && typeof message === "string" && message !== "") {
+      try {
+        message = JSON.parse(message);
+      } catch (e) {
+        console.error("Error parsing message data:", e);
+      }
+    }
+
+    handleEvent(message);
+  };
+
+  const handleEvent = (event: any) => {
+    // if (event.eventType === "gameReady") {
+    //   console.log("Game is ready!");
+    // } 
+
+    console.log("Event received:", event);
+
+    handleSendTransaction();
+  };
+
+  useEffect(() => {
+    const fetchBalance = async () => {
+      if (solanaWallet) {
+        try {
+          setLoading(true);
+          const connection = new Connection(clusterApiUrl("devnet"));
+          const walletPublicKey = new PublicKey(solanaWallet.address);
+          const balance = await connection.getBalance(walletPublicKey);
+          setBalance(balance / 1_000_000_000); // Convert lamports to SOL
+        } catch (error) {
+          console.error("Failed to fetch wallet balance:", error);
+        } finally {
+          setLoading(false);
+        }
+      }
+    };
+    fetchBalance();
+  }, [solanaWallet, refreshTrigger]);
 
   useEffect(() => {
     const verifyUserToken = async () => {
@@ -78,6 +134,36 @@ export default function DashboardPage() {
       setLoading(false);
     }
   };
+
+  const copyToClipboard = () => {
+    if (solanaWallet?.address) {
+      navigator.clipboard.writeText(solanaWallet.address);
+      alert("Copied to clipboard!");
+    }
+  }
+
+  // const {exportWallet} = useSolanaWallets();
+
+  function ExportWalletButton() {
+    const {ready, authenticated, user} = usePrivy();
+    const {exportWallet} = useSolanaWallets();
+    // Check that your user is authenticated
+    const isAuthenticated = ready && authenticated;
+    // Check that your user has an embedded wallet
+    const hasEmbeddedWallet = !!user.linkedAccounts.find(
+      (account): account is WalletWithMetadata =>
+        account.type === 'wallet' &&
+        account.walletClientType === 'privy' &&
+        account.chainType === 'solana',
+    );
+  
+    return (
+      <button onClick={() =>exportWallet()} disabled={!isAuthenticated || !hasEmbeddedWallet}
+      className="text-sm bg-blue-600 hover:bg-blue-700 py-2 px-4 rounded-md text-white">
+        Export Private Key
+      </button>
+    );
+  }
 
   // Handle sending a Solana transaction
   const handleSendTransaction = async () => {
@@ -127,14 +213,14 @@ export default function DashboardPage() {
   return (
     <>
       <Head>
-        <title>Privy Auth Demo</title>
+        <title>Gamebets</title>
       </Head>
 
       <main className="flex flex-col min-h-screen px-4 sm:px-20 py-6 sm:py-10 bg-privy-light-blue">
         {ready && authenticated ? (
           <>
             <div className="flex flex-row justify-between">
-              <h1 className="text-2xl font-semibold">Privy Auth Demo</h1>
+              <h1 className="text-2xl font-semibold">Gamebets</h1>
               <button
                 onClick={logout}
                 className="text-sm bg-violet-200 hover:text-violet-900 py-2 px-4 rounded-md text-violet-700"
@@ -142,6 +228,44 @@ export default function DashboardPage() {
                 Logout
               </button>
             </div>
+
+            {solanaWallet && (
+              <div className="mt-6 p-4 bg-white rounded-lg shadow-md">
+                <h2 className="text-lg font-bold text-gray-800">Solana Wallet</h2>
+                
+                <div className="mt-2">
+                  <p className="text-sm text-gray-600">Address:</p>
+                  <p className="text-sm font-mono text-gray-900">{solanaWallet.address}</p>
+                </div>
+
+                <div className="mt-4">
+                  <p className="text-sm text-gray-600">Balance:</p>
+                  <p className="text-sm font-mono text-gray-900">
+                    {balance !== null ? `${balance} SOL` : "Loading..."}
+                  </p>
+                </div>
+
+                <div className="mt-4 flex space-x-4">
+                  <button
+                    onClick={() => setRefreshTrigger((prev) => prev + 1)}
+                    className="text-sm bg-gray-600 hover:bg-gray-700 py-2 px-4 rounded-md text-white"
+                  >
+                    Refresh Balance
+                  </button>
+                  
+                  <button
+                    onClick={copyToClipboard}
+                    className="text-sm bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-md"
+                  >
+                    Copy Address
+                  </button>
+
+                  <ExportWalletButton />
+                </div>
+              </div>
+            )}
+
+
 
             <div className="mt-12 flex gap-4 flex-wrap">
               {/* Send Solana Test Transaction Button */}
@@ -187,6 +311,16 @@ export default function DashboardPage() {
             <pre className="max-w-4xl bg-slate-700 text-slate-50 font-mono p-4 text-xs sm:text-sm rounded-md mt-2">
               {JSON.stringify(user, null, 2)}
             </pre>
+
+            {solanaWallet && (
+            <div className="mt-6 w-full">
+              <h2 className="text-sm font-semibold">Solana Wallet Information</h2>
+              <pre className="max-w-4xl bg-slate-700 text-slate-50 font-mono p-4 text-xs sm:text-sm rounded-md mt-2">
+                {JSON.stringify(solanaWallet, null, 2)}
+              </pre>
+            </div>
+          )}
+
           </>
         ) : null}
       </main>
