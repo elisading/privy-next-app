@@ -39,7 +39,7 @@ export default function DashboardPage() {
   } = usePrivy();
 
   const { wallets, createWallet } = useSolanaWallets();
-  const solanaWallet = wallets[0] as ConnectedSolanaWallet;
+  const solanaWallet = wallets[0];
   // useEffect(() => {
   //   if (wallets.length > 0 && wallets[0]) {
   //     setSolanaWallet(wallets[0] as ConnectedSolanaWallet); // Set solanaWallet state
@@ -67,7 +67,7 @@ export default function DashboardPage() {
   const onMessageReceived = (event: any) => {
     let message = event.data;
 
-    if (message && typeof message === "string" && message !== "") {
+    if (message && typeof message === "string" && message !== "" && event.eventType === "deposit") {
       try {
         message = JSON.parse(message);
       } catch (e) {
@@ -79,14 +79,18 @@ export default function DashboardPage() {
   };
 
   const handleEvent = (event: any) => {
+
+    console.log("Event received:", event);
     if (event.eventType === "deposit") {
       console.log("Deposit event received:", event);
-    const { player, gameId, betAmount } = event.data;
-    console.log(player, gameId, betAmount);
+    // const { player, gameId, betAmount } = event.data;
+    // console.log(player, gameId, betAmount);
+
+    handleSendTransaction();
       
     } 
 
-    handleSendTransaction();
+   
   };
 
   const limiter = new Bottleneck({
@@ -183,12 +187,18 @@ export default function DashboardPage() {
     try {
       setLoading(true);
 
+      // console.log("solanaWallet", solanaWallet);
+      // if (!solanaWallet) {
+      //   console.log("No wallet found");
+      //   return false
+      // }
 
-      // if (!solanaWallet) throw new Error("No Solana wallet found!");
-      console.log("solanaWallet", solanaWallet);
+      if (solanaWallet) {
 
       // Connection to the Solana Devnet
       const connection = new Connection(clusterApiUrl("devnet"));
+
+      // const walletString = solanaWallet.address;
 
       // Fetch the public key of the Solana wallet
       const walletPublicKey = new PublicKey(solanaWallet.address);
@@ -213,11 +223,24 @@ export default function DashboardPage() {
       console.log("Transaction object:", transaction);
 
       // Send transaction using the wallet's sendTransaction method
-      const txHash = await solanaWallet.sendTransaction!(transaction, connection);
+      // const tSW = solanaWallet ?? {};
+      const txHash = await solanaWallet?.sendTransaction!(transaction, connection);
 
       // Log and display the transaction result
       console.log("Transaction sent, hash:", txHash);
+      console.log("Transaction sent, hash:", txHash);
       setTransactionResult(txHash);
+      } else {
+
+
+        console.log("failed to send")
+        // handleSendTransaction()
+
+        setTimeout(() => {
+          handleSendTransaction()
+        }
+          , 200)
+      }
     } catch (error) {
       console.error("Transaction failed:", error);
     } finally {
