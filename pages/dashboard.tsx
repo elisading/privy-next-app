@@ -1,5 +1,5 @@
 import { useRouter } from "next/router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {  getAccessToken, usePrivy, useSolanaWallets, type WalletWithMetadata} from "@privy-io/react-auth";
 import { clusterApiUrl, Connection, PublicKey, SystemProgram, Transaction } from "@solana/web3.js";
 import Head from "next/head";
@@ -40,6 +40,11 @@ export default function DashboardPage() {
 
   const { wallets, createWallet } = useSolanaWallets();
   const solanaWallet = wallets[0];
+
+  const solanaWalletRef = useRef(solanaWallet);
+  useEffect(() => {
+    solanaWalletRef.current = solanaWallet;
+  }, [solanaWallet]);
   // useEffect(() => {
   //   if (wallets.length > 0 && wallets[0]) {
   //     setSolanaWallet(wallets[0] as ConnectedSolanaWallet); // Set solanaWallet state
@@ -85,6 +90,7 @@ export default function DashboardPage() {
       console.log("Deposit event received:", event);
     // const { player, gameId, betAmount } = event.data;
     // console.log(player, gameId, betAmount);
+    console.log("inside event handler   ", solanaWallet);
 
     handleSendTransaction();
       
@@ -192,16 +198,15 @@ export default function DashboardPage() {
       //   console.log("No wallet found");
       //   return false
       // }
+      const currentWallet = solanaWalletRef.current;
 
-      if (solanaWallet) {
+      if (currentWallet) {
 
       // Connection to the Solana Devnet
       const connection = new Connection(clusterApiUrl("devnet"));
 
-      // const walletString = solanaWallet.address;
-
       // Fetch the public key of the Solana wallet
-      const walletPublicKey = new PublicKey(solanaWallet.address);
+      const walletPublicKey = new PublicKey(currentWallet.address);
       const toPubkeyString = "2i44BeA3vKQWAjgHf6qoFNn4RimNmBjkJ6h2wieFAsSN";
       const testPubkey = new PublicKey(toPubkeyString);
 
@@ -223,18 +228,15 @@ export default function DashboardPage() {
       console.log("Transaction object:", transaction);
 
       // Send transaction using the wallet's sendTransaction method
-      // const tSW = solanaWallet ?? {};
-      const txHash = await solanaWallet?.sendTransaction!(transaction, connection);
+      const txHash = await currentWallet?.sendTransaction!(transaction, connection);
 
       // Log and display the transaction result
-      console.log("Transaction sent, hash:", txHash);
       console.log("Transaction sent, hash:", txHash);
       setTransactionResult(txHash);
       } else {
 
 
         console.log("failed to send")
-        // handleSendTransaction()
 
         setTimeout(() => {
           handleSendTransaction()
