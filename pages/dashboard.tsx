@@ -1,6 +1,6 @@
 import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
-import { getAccessToken, usePrivy, useWallets, useSolanaWallets } from "@privy-io/react-auth";
+import { getAccessToken, usePrivy, useSolanaWallets } from "@privy-io/react-auth";
 import { clusterApiUrl, Connection, PublicKey, SystemProgram, Transaction } from "@solana/web3.js";
 import Head from "next/head";
 
@@ -17,8 +17,8 @@ async function verifyToken() {
 }
 
 export default function DashboardPage() {
-  const [verifyResult, setVerifyResult] = useState();
-  const [transactionResult, setTransactionResult] = useState();
+  // const [verifyResult, setVerifyResult] = useState();
+  const [transactionResult, setTransactionResult] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0); // Trigger for refreshing user object
   const router = useRouter();
@@ -27,21 +27,36 @@ export default function DashboardPage() {
     authenticated,
     user,
     logout,
-    linkEmail,
-    linkWallet,
-    unlinkEmail,
-    unlinkPhone,
-    unlinkWallet,
+    // linkEmail,
+    // linkWallet,
+    // unlinkEmail,
+    // unlinkPhone,
+    // unlinkWallet,
   } = usePrivy();
 
   const { wallets, createWallet } = useSolanaWallets();
-  const solanaWallet = wallets[0]; // Get the first Solana wallet
+  const solanaWallet = wallets[0]; 
 
   useEffect(() => {
     if (ready && !authenticated) {
       router.push("/");
     }
   }, [ready, authenticated, router]);
+
+  useEffect(() => {
+    const verifyUserToken = async () => {
+      if (authenticated) {
+        try {
+          const result = await verifyToken();
+          console.log("Token verification result:", result);
+        } catch (error) {
+          console.error("Token verification failed:", error);
+        }
+      }
+    };
+
+    verifyUserToken();
+  }, [authenticated]);
 
   // Refresh the user object when refreshTrigger changes
   useEffect(() => {
@@ -56,7 +71,7 @@ export default function DashboardPage() {
 
       const wallet = await createWallet();
       console.log("Created Solana Wallet:", wallet);
-      setRefreshTrigger((prev) => prev + 1); // Trigger a refresh of the user object
+      setRefreshTrigger((prev) => prev + 1);
     } catch (error) {
       console.error("Failed to create Solana wallet:", error);
     } finally {
@@ -101,7 +116,7 @@ export default function DashboardPage() {
 
       // Log and display the transaction result
       console.log("Transaction sent, hash:", txHash);
-      // setTransactionResult(txHash);
+      setTransactionResult(txHash);
     } catch (error) {
       console.error("Transaction failed:", error);
     } finally {
@@ -140,7 +155,7 @@ export default function DashboardPage() {
 
               {/* Create Solana Wallet Button */}
               <button
-                disabled={loading || !authenticated || solanaWallet}
+                disabled={loading || !authenticated || !!solanaWallet}
                 onClick={handleCreateSolanaWallet}
                 className="text-sm bg-green-600 hover:bg-green-700 py-2 px-4 rounded-md text-white"
               >
