@@ -1,6 +1,7 @@
 import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
-import { getAccessToken, usePrivy } from "@privy-io/react-auth";
+import { getAccessToken, usePrivy, useWallets, useSolanaWallets } from "@privy-io/react-auth";
+import { clusterApiUrl, Connection, PublicKey, SystemProgram, Transaction } from "@solana/web3.js";
 import Head from "next/head";
 
 async function verifyToken() {
@@ -17,6 +18,9 @@ async function verifyToken() {
 
 export default function DashboardPage() {
   const [verifyResult, setVerifyResult] = useState();
+  const [transactionResult, setTransactionResult] = useState();
+  const [loading, setLoading] = useState(false);
+  const [refreshTrigger, setRefreshTrigger] = useState(0); // Trigger for refreshing user object
   const router = useRouter();
   const {
     ready,
@@ -26,16 +30,12 @@ export default function DashboardPage() {
     linkEmail,
     linkWallet,
     unlinkEmail,
-    linkPhone,
     unlinkPhone,
     unlinkWallet,
-    linkGoogle,
-    unlinkGoogle,
-    linkTwitter,
-    unlinkTwitter,
-    linkDiscord,
-    unlinkDiscord,
   } = usePrivy();
+
+  const { wallets, createWallet } = useSolanaWallets();
+  const solanaWallet = wallets[0]; // Get the first Solana wallet
 
   useEffect(() => {
     if (ready && !authenticated) {
@@ -43,16 +43,71 @@ export default function DashboardPage() {
     }
   }, [ready, authenticated, router]);
 
-  const numAccounts = user?.linkedAccounts?.length || 0;
-  const canRemoveAccount = numAccounts > 1;
+  // Refresh the user object when refreshTrigger changes
+  useEffect(() => {
+    // Logic here can include API calls to refresh the user object if necessary
+  }, [refreshTrigger]);
 
-  const email = user?.email;
-  const phone = user?.phone;
-  const wallet = user?.wallet;
+  // Handle manually creating a Solana wallet
+  const handleCreateSolanaWallet = async () => {
+    try {
+      setLoading(true);
+      if (!authenticated) throw new Error("User is not authenticated");
 
-  const googleSubject = user?.google?.subject || null;
-  const twitterSubject = user?.twitter?.subject || null;
-  const discordSubject = user?.discord?.subject || null;
+      const wallet = await createWallet();
+      console.log("Created Solana Wallet:", wallet);
+      setRefreshTrigger((prev) => prev + 1); // Trigger a refresh of the user object
+    } catch (error) {
+      console.error("Failed to create Solana wallet:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle sending a Solana transaction
+  const handleSendTransaction = async () => {
+    try {
+      setLoading(true);
+
+      if (!solanaWallet) throw new Error("No Solana wallet found!");
+
+      // Connection to the Solana Devnet
+      const connection = new Connection(clusterApiUrl("devnet"));
+
+      // Fetch the public key of the Solana wallet
+      const walletPublicKey = new PublicKey(solanaWallet.address);
+      const toPubkeyString = "2i44BeA3vKQWAjgHf6qoFNn4RimNmBjkJ6h2wieFAsSN";
+      const testPubkey = new PublicKey(toPubkeyString);
+
+      const balance = await connection.getBalance(walletPublicKey);
+      console.log(`Wallet balance: ${balance} lamports`);
+
+      // Build a transaction to send 0.01 SOL to the recipient address
+      const transaction = new Transaction().add(
+        SystemProgram.transfer({
+          fromPubkey: walletPublicKey,
+          toPubkey: testPubkey,
+          lamports: 10000000, // 0.01 SOL (1 SOL = 1,000,000,000 lamports)
+        })
+      );
+
+      const { blockhash } = await connection.getLatestBlockhash();
+      transaction.recentBlockhash = blockhash;
+      transaction.feePayer = walletPublicKey;
+      console.log("Transaction object:", transaction);
+
+      // Send transaction using the wallet's sendTransaction method
+      const txHash = await solanaWallet.sendTransaction!(transaction, connection);
+
+      // Log and display the transaction result
+      console.log("Transaction sent, hash:", txHash);
+      // setTransactionResult(txHash);
+    } catch (error) {
+      console.error("Transaction failed:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <>
@@ -72,141 +127,42 @@ export default function DashboardPage() {
                 Logout
               </button>
             </div>
+
             <div className="mt-12 flex gap-4 flex-wrap">
-              {googleSubject ? (
-                <button
-                  onClick={() => {
-                    unlinkGoogle(googleSubject);
-                  }}
-                  className="text-sm border border-violet-600 hover:border-violet-700 py-2 px-4 rounded-md text-violet-600 hover:text-violet-700 disabled:border-gray-500 disabled:text-gray-500 hover:disabled:text-gray-500"
-                  disabled={!canRemoveAccount}
-                >
-                  Unlink Google
-                </button>
-              ) : (
-                <button
-                  onClick={() => {
-                    linkGoogle();
-                  }}
-                  className="text-sm bg-violet-600 hover:bg-violet-700 py-2 px-4 rounded-md text-white"
-                >
-                  Link Google
-                </button>
-              )}
-
-              {twitterSubject ? (
-                <button
-                  onClick={() => {
-                    unlinkTwitter(twitterSubject);
-                  }}
-                  className="text-sm border border-violet-600 hover:border-violet-700 py-2 px-4 rounded-md text-violet-600 hover:text-violet-700 disabled:border-gray-500 disabled:text-gray-500 hover:disabled:text-gray-500"
-                  disabled={!canRemoveAccount}
-                >
-                  Unlink Twitter
-                </button>
-              ) : (
-                <button
-                  className="text-sm bg-violet-600 hover:bg-violet-700 py-2 px-4 rounded-md text-white"
-                  onClick={() => {
-                    linkTwitter();
-                  }}
-                >
-                  Link Twitter
-                </button>
-              )}
-
-              {discordSubject ? (
-                <button
-                  onClick={() => {
-                    unlinkDiscord(discordSubject);
-                  }}
-                  className="text-sm border border-violet-600 hover:border-violet-700 py-2 px-4 rounded-md text-violet-600 hover:text-violet-700 disabled:border-gray-500 disabled:text-gray-500 hover:disabled:text-gray-500"
-                  disabled={!canRemoveAccount}
-                >
-                  Unlink Discord
-                </button>
-              ) : (
-                <button
-                  className="text-sm bg-violet-600 hover:bg-violet-700 py-2 px-4 rounded-md text-white"
-                  onClick={() => {
-                    linkDiscord();
-                  }}
-                >
-                  Link Discord
-                </button>
-              )}
-
-              {email ? (
-                <button
-                  onClick={() => {
-                    unlinkEmail(email.address);
-                  }}
-                  className="text-sm border border-violet-600 hover:border-violet-700 py-2 px-4 rounded-md text-violet-600 hover:text-violet-700 disabled:border-gray-500 disabled:text-gray-500 hover:disabled:text-gray-500"
-                  disabled={!canRemoveAccount}
-                >
-                  Unlink email
-                </button>
-              ) : (
-                <button
-                  onClick={linkEmail}
-                  className="text-sm bg-violet-600 hover:bg-violet-700 py-2 px-4 rounded-md text-white"
-                >
-                  Connect email
-                </button>
-              )}
-              {wallet ? (
-                <button
-                  onClick={() => {
-                    unlinkWallet(wallet.address);
-                  }}
-                  className="text-sm border border-violet-600 hover:border-violet-700 py-2 px-4 rounded-md text-violet-600 hover:text-violet-700 disabled:border-gray-500 disabled:text-gray-500 hover:disabled:text-gray-500"
-                  disabled={!canRemoveAccount}
-                >
-                  Unlink wallet
-                </button>
-              ) : (
-                <button
-                  onClick={linkWallet}
-                  className="text-sm bg-violet-600 hover:bg-violet-700 py-2 px-4 rounded-md text-white border-none"
-                >
-                  Connect wallet
-                </button>
-              )}
-              {phone ? (
-                <button
-                  onClick={() => {
-                    unlinkPhone(phone.number);
-                  }}
-                  className="text-sm border border-violet-600 hover:border-violet-700 py-2 px-4 rounded-md text-violet-600 hover:text-violet-700 disabled:border-gray-500 disabled:text-gray-500 hover:disabled:text-gray-500"
-                  disabled={!canRemoveAccount}
-                >
-                  Unlink phone
-                </button>
-              ) : (
-                <button
-                  onClick={linkPhone}
-                  className="text-sm bg-violet-600 hover:bg-violet-700 py-2 px-4 rounded-md text-white border-none"
-                >
-                  Connect phone
-                </button>
-              )}
-
+              {/* Send Solana Test Transaction Button */}
               <button
-                onClick={() => verifyToken().then(setVerifyResult)}
+                disabled={!solanaWallet || loading}
+                onClick={handleSendTransaction}
                 className="text-sm bg-violet-600 hover:bg-violet-700 py-2 px-4 rounded-md text-white border-none"
               >
-                Verify token on server
+                {loading ? "Sending Transaction..." : "Send Test Transaction (0.01 SOL)"}
               </button>
 
-              {Boolean(verifyResult) && (
-                <details className="w-full">
-                  <summary className="mt-6 font-bold uppercase text-sm text-gray-600">
-                    Server verify result
-                  </summary>
+              {/* Create Solana Wallet Button */}
+              <button
+                disabled={loading || !authenticated || solanaWallet}
+                onClick={handleCreateSolanaWallet}
+                className="text-sm bg-green-600 hover:bg-green-700 py-2 px-4 rounded-md text-white"
+              >
+                {solanaWallet ? "Solana Wallet Created" : "Create Solana Wallet"}
+              </button>
+
+              {/* Refresh User Object Button */}
+              <button
+                onClick={() => setRefreshTrigger((prev) => prev + 1)}
+                className="text-sm bg-gray-600 hover:bg-gray-700 py-2 px-4 rounded-md text-white"
+              >
+                Refresh User Object
+              </button>
+
+              {/* Transaction Result */}
+              {transactionResult && (
+                <div className="mt-6 w-full">
+                  <h2 className="text-sm font-semibold">Transaction Result</h2>
                   <pre className="max-w-4xl bg-slate-700 text-slate-50 font-mono p-4 text-xs sm:text-sm rounded-md mt-2">
-                    {JSON.stringify(verifyResult, null, 2)}
+                    {transactionResult}
                   </pre>
-                </details>
+                </div>
               )}
             </div>
 
