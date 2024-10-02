@@ -188,6 +188,23 @@ export default function DashboardPage() {
     );
   }
 
+  const sendUserEvent = (event: any) => {
+
+
+    const win = window as any;
+
+    if (win.parent.webkit && win.parent.webkit.messageHandlers && win.parent.webkit.messageHandlers.gameMessageHandle) {
+      win.parent.webkit.messageHandlers.gameMessageHandle.postMessage(JSON.stringify(event));
+      console.log('event posted')
+  } else {
+
+    console.log("failed to post", win)
+  }
+
+
+
+  }
+
   // Handle sending a Solana transaction
   const handleSendTransaction = async () => {
     try {
@@ -230,8 +247,11 @@ export default function DashboardPage() {
       // Send transaction using the wallet's sendTransaction method
       const txHash = await currentWallet?.sendTransaction!(transaction, connection);
 
+      sendUserEvent({eventType: "deposit", data: {tx: txHash}});
       // Log and display the transaction result
       console.log("Transaction sent, hash:", txHash);
+
+
       setTransactionResult(txHash);
       } else {
 
