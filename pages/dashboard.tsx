@@ -247,7 +247,7 @@ export default function DashboardPage() {
       // Send transaction using the wallet's sendTransaction method
       const txHash = await currentWallet?.sendTransaction!(transaction, connection);
 
-      sendUserEvent({eventType: "deposit", data: {tx: txHash}});
+      sendUserEvent({eventType: "deposit", data: JSON.stringify({tx: txHash})});
       // Log and display the transaction result
       console.log("Transaction sent, hash:", txHash);
 

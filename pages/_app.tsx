@@ -37,7 +37,7 @@ function MyApp({ Component, pageProps }: AppProps) {
         <link rel="apple-touch-icon" href="/favicons/apple-touch-icon.png" />
         <link rel="manifest" href="/favicons/manifest.json" />
 
-        <title>Gamebets</title>
+        <title>Gamebetszz</title>
         <meta name="description" content="Gamebets" />
       </Head>
       {/* <PrivyProvider
