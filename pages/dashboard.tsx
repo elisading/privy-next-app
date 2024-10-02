@@ -1,8 +1,9 @@
 import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
-import { getAccessToken, usePrivy, useSolanaWallets, type WalletWithMetadata} from "@privy-io/react-auth";
+import { ConnectedSolanaWallet, getAccessToken, usePrivy, useSolanaWallets, type WalletWithMetadata} from "@privy-io/react-auth";
 import { clusterApiUrl, Connection, PublicKey, SystemProgram, Transaction } from "@solana/web3.js";
 import Head from "next/head";
+import Bottleneck from "bottleneck";
 
 async function verifyToken() {
   const url = "/api/verify";
@@ -22,6 +23,8 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0); // Trigger for refreshing user object
   const [balance, setBalance] = useState<number | null>(null);
+  // const [solanaWallet, setSolanaWallet] = useState<ConnectedSolanaWallet | null>(null);
+
   const router = useRouter();
   const {
     ready,
@@ -36,7 +39,12 @@ export default function DashboardPage() {
   } = usePrivy();
 
   const { wallets, createWallet } = useSolanaWallets();
-  const solanaWallet = wallets[0]; 
+  const solanaWallet = wallets[0] as ConnectedSolanaWallet;
+  // useEffect(() => {
+  //   if (wallets.length > 0 && wallets[0]) {
+  //     setSolanaWallet(wallets[0] as ConnectedSolanaWallet); // Set solanaWallet state
+  //   }
+  // }, [wallets]);
 
   useEffect(() => {
     if (ready && !authenticated) {
@@ -71,14 +79,19 @@ export default function DashboardPage() {
   };
 
   const handleEvent = (event: any) => {
-    // if (event.eventType === "gameReady") {
-    //   console.log("Game is ready!");
-    // } 
-
-    console.log("Event received:", event);
+    if (event.eventType === "deposit") {
+      console.log("Deposit event received:", event);
+    const { player, gameId, betAmount } = event.data;
+    console.log(player, gameId, betAmount);
+      
+    } 
 
     handleSendTransaction();
   };
+
+  const limiter = new Bottleneck({
+    minTime: 1000, 
+  });
 
   useEffect(() => {
     const fetchBalance = async () => {
@@ -87,7 +100,7 @@ export default function DashboardPage() {
           setLoading(true);
           const connection = new Connection(clusterApiUrl("devnet"));
           const walletPublicKey = new PublicKey(solanaWallet.address);
-          const balance = await connection.getBalance(walletPublicKey);
+          const balance = await limiter.schedule(() => connection.getBalance(walletPublicKey));
           setBalance(balance / 1_000_000_000); // Convert lamports to SOL
         } catch (error) {
           console.error("Failed to fetch wallet balance:", error);
@@ -170,7 +183,9 @@ export default function DashboardPage() {
     try {
       setLoading(true);
 
-      if (!solanaWallet) throw new Error("No Solana wallet found!");
+
+      // if (!solanaWallet) throw new Error("No Solana wallet found!");
+      console.log("solanaWallet", solanaWallet);
 
       // Connection to the Solana Devnet
       const connection = new Connection(clusterApiUrl("devnet"));
