@@ -62,8 +62,8 @@ function MyApp({ Component, pageProps }: AppProps) {
       },
       "loginMethods": [
         "email",
-        "wallet",
-        "apple"
+        // "wallet",
+        // "apple"
       ],
       "fundingMethodConfig": {
         "moonpay": {

@@ -1,7 +1,9 @@
 import { useRouter } from "next/router";
 import { useEffect, useRef, useState } from "react";
 import {  getAccessToken, usePrivy, useSolanaWallets, type WalletWithMetadata} from "@privy-io/react-auth";
-import { clusterApiUrl, Connection, PublicKey, SystemProgram, Transaction } from "@solana/web3.js";
+import { clusterApiUrl, Connection, PublicKey, SystemProgram, Transaction, TransactionInstruction } from "@solana/web3.js";
+import { getAssociatedTokenAddress, getAccount, TOKEN_PROGRAM_ID } from '@solana/spl-token';
+import * as crypto from 'crypto';
 import Head from "next/head";
 import Bottleneck from "bottleneck";
 
@@ -22,7 +24,9 @@ export default function DashboardPage() {
   const [transactionResult, setTransactionResult] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0); // Trigger for refreshing user object
-  const [balance, setBalance] = useState<number | null>(null);
+  const [solBalance, setSolBalance] = useState<number | null>(null);
+  const [usdcBalance, setUsdcBalance] = useState<number | null>(null);
+  const usdcMintAddress = new PublicKey('4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU'); 
   // const [solanaWallet, setSolanaWallet] = useState<ConnectedSolanaWallet | null>(null);
 
   const router = useRouter();
@@ -88,11 +92,15 @@ export default function DashboardPage() {
     console.log("Event received:", event);
     if (event.eventType === "deposit") {
       console.log("Deposit event received:", event);
-    // const { player, gameId, betAmount } = event.data;
-    // console.log(player, gameId, betAmount);
-    console.log("inside event handler   ", solanaWallet);
+    const { gameId, betAmount } = event.data;
+    console.log( gameId, betAmount);
+    console.log("inside event handler   ", solanaWalletRef.current);
 
-    handleSendTransaction();
+    const instructionData = getInstructionData(gameId, betAmount);
+    console.log("instructionData", instructionData);
+    handlePlayerDeposit(instructionData, gameId);
+
+    // handleSendTransaction();
       
     } 
 
@@ -111,7 +119,13 @@ export default function DashboardPage() {
           const connection = new Connection(clusterApiUrl("devnet"));
           const walletPublicKey = new PublicKey(solanaWallet.address);
           const balance = await limiter.schedule(() => connection.getBalance(walletPublicKey));
-          setBalance(balance / 1_000_000_000); // Convert lamports to SOL
+          setSolBalance(balance / 1_000_000_000); // Convert lamports to SOL
+
+          const usdcTokenAddress = await getAssociatedTokenAddress(usdcMintAddress, walletPublicKey);
+          const usdcAccount = await getAccount(connection, usdcTokenAddress, "confirmed", TOKEN_PROGRAM_ID);
+          const usdcBalance = Number(usdcAccount.amount) / 1e6;
+          setUsdcBalance(usdcBalance);
+
         } catch (error) {
           console.error("Failed to fetch wallet balance:", error);
         } finally {
@@ -201,9 +215,147 @@ export default function DashboardPage() {
     console.log("failed to post", win)
   }
 
-
-
   }
+
+  // const getInstructionData = (gameId: string, wagerAmount: number) => {
+  //   const gameIdBuffer = Buffer.from(gameId, 'utf-8');
+  //   const gameIdLengthBuffer = Buffer.alloc(4);
+  //   gameIdLengthBuffer.writeUInt32LE(gameIdBuffer.length, 0);
+
+  //   const wagerAmountBuffer = Buffer.alloc(8);
+  //   wagerAmountBuffer.writeBigUInt64LE(BigInt(wagerAmount), 0);
+
+  //   const instructionData = Buffer.concat([gameIdLengthBuffer, gameIdBuffer, wagerAmountBuffer]);
+  //   return instructionData;
+  // };
+
+  // const getInstructionData = (gameId: string, wagerAmount: number) => {
+  //   const instructionName = 'player1_deposit';
+  //   const discriminator = crypto
+  //     .createHash('sha256')
+  //     .update('global:' + instructionName)
+  //     .digest()
+  //     .slice(0, 8);
+  //   const gameIdBuffer = Buffer.from(gameId, 'utf-8');
+  //   const gameIdLengthBuffer = Buffer.alloc(4);
+  //   gameIdLengthBuffer.writeUInt32LE(gameIdBuffer.length, 0);
+  //   const wagerAmountBuffer = Buffer.alloc(8);
+  //   wagerAmountBuffer.writeBigUInt64LE(BigInt(wagerAmount), 0);
+  //   const instructionData = Buffer.concat([
+  //     discriminator,
+  //     gameIdLengthBuffer,
+  //     gameIdBuffer,
+  //     wagerAmountBuffer
+  //   ]);
+  //   return instructionData;
+  // };
+
+  const getInstructionData = (gameId: string, wagerAmount: number) => {
+    const gameIdBuffer = Buffer.from(gameId, 'utf-8');
+    const gameIdLengthBuffer = Buffer.alloc(4);
+    gameIdLengthBuffer.writeUInt32LE(gameIdBuffer.length, 0);
+  
+    const wagerAmountBuffer = Buffer.alloc(8);
+    wagerAmountBuffer.writeBigUInt64LE(BigInt(wagerAmount), 0);
+  
+    // Calculate the discriminator for the method
+    const methodName = "global:player1_deposit";
+    const hash = crypto.createHash('sha256').update(methodName).digest('hex');
+    const discriminator = Buffer.from(hash, 'hex').slice(0, 8);  // First 8 bytes of the hash
+  
+    // Concatenate the discriminator with the gameId and wagerAmount
+    const instructionData = Buffer.concat([discriminator, gameIdLengthBuffer, gameIdBuffer, wagerAmountBuffer]);
+    
+    return instructionData;
+  };
+  
+  const handlePlayerDeposit = async (instructionData: Buffer, gameId: string) => {
+    const playerWallet = solanaWalletRef.current;
+    if (playerWallet) {
+      const programId = new PublicKey('7HFBvvE6nBnasydt1pEXBdRjmrJ7qSn2ZpreGfNQ9KUS');
+      console.log('Program ID:', programId);
+      const usdcMintAddress = new PublicKey('4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU');
+      const connection = new Connection(clusterApiUrl('devnet'));
+      const playerPubkey = new PublicKey(playerWallet.address);
+      const [gameAccountPDA] = await PublicKey.findProgramAddressSync(
+        [Buffer.from(gameId)],
+        programId
+      );
+      const [escrowTokenAccountPDA] = await PublicKey.findProgramAddressSync(
+        [Buffer.from('escrow'), Buffer.from(gameId)],
+        programId
+      );
+      const player1TokenAccount = await getAssociatedTokenAddress(usdcMintAddress, playerPubkey);
+      const instruction = new TransactionInstruction({
+        keys: [
+          { pubkey: playerPubkey, isSigner: true, isWritable: true }, // Player1's wallet
+          { pubkey: gameAccountPDA, isSigner: false, isWritable: true }, // Game account PDA
+          { pubkey: escrowTokenAccountPDA, isSigner: false, isWritable: true }, // Escrow token account PDA
+          { pubkey: player1TokenAccount, isSigner: false, isWritable: true }, // Player1's USDC token account
+          { pubkey: usdcMintAddress, isSigner: false, isWritable: false }, // USDC Mint address
+          { pubkey: SystemProgram.programId, isSigner: false, isWritable: false }, // System Program
+          { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },  // Solana token program
+          { pubkey: SystemProgram.programId, isSigner: false, isWritable: false }  // System Program
+        ],
+        programId,
+        data: instructionData
+      });
+      const transaction = new Transaction().add(instruction);
+      const { blockhash } = await connection.getLatestBlockhash();
+      transaction.recentBlockhash = blockhash;
+      transaction.feePayer = playerPubkey;
+      console.log('Transaction object:', transaction);
+      const txHash = await playerWallet.sendTransaction!(transaction, connection);
+      sendUserEvent({ eventType: 'deposit', data: { tx: txHash } });
+      setTransactionResult(txHash);
+    } else {
+      console.log('Failed to send transaction');
+    }
+  };
+
+  // const handlePlayerDeposit = async (instructionData: Buffer, gameId: String) => {
+  //   const playerWallet = solanaWalletRef.current;
+
+  //   if(playerWallet) {
+  //   const programId = new PublicKey('7HFBvvE6nBnasydt1pEXBdRjmrJ7qSn2ZpreGfNQ9KUS');
+  //   const usdcMintAddress = new PublicKey('4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU'); 
+  //   const connection = new Connection(clusterApiUrl("devnet"));
+  //   const playerPubkey = new PublicKey(playerWallet.address);
+
+  //   const [gameAccountPDA] = await PublicKey.findProgramAddressSync([Buffer.from(gameId)], programId);
+  //   const [escrowTokenAccountPDA] = await PublicKey.findProgramAddressSync([Buffer.from('escrow'), Buffer.from(gameId)], programId);
+
+  //   const player1TokenAccount = await getAssociatedTokenAddress(usdcMintAddress, playerPubkey);
+
+  //   const instruction = new TransactionInstruction({
+  //     keys: [
+  //       { pubkey: playerPubkey, isSigner: true, isWritable: true },  // Player1's wallet
+  //       { pubkey: gameAccountPDA, isSigner: false, isWritable: true },  // Game account PDA
+  //       { pubkey: escrowTokenAccountPDA, isSigner: false, isWritable: true },  // Escrow token account PDA
+  //       { pubkey: player1TokenAccount, isSigner: false, isWritable: true },  // Player1's USDC token account
+  //       { pubkey: usdcMintAddress, isSigner: false, isWritable: false },  // USDC Mint address
+  //       { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },  // Solana token program
+  //       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false }  // System Program
+  //     ],
+  //     programId,
+  //     data: Buffer.from(instructionData) 
+  //   });
+
+  //   const transaction = new Transaction().add(instruction);
+  //   const { blockhash } = await connection.getLatestBlockhash();
+  //   transaction.recentBlockhash = blockhash;
+  //   transaction.feePayer = playerPubkey;
+
+  //   console.log("Transaction object:", transaction);
+  //   const txHash = await playerWallet.sendTransaction!(transaction, connection);
+  //   sendUserEvent({eventType: "deposit", data: {tx: txHash}});
+
+  //   setTransactionResult(txHash);
+
+  //   } else {
+  //      console.log("failed to send")
+  //   }
+  // };      
 
   // Handle sending a Solana transaction
   const handleSendTransaction = async () => {
@@ -301,7 +453,14 @@ export default function DashboardPage() {
                 <div className="mt-4">
                   <p className="text-sm text-gray-600">Balance:</p>
                   <p className="text-sm font-mono text-gray-900">
-                    {balance !== null ? `${balance} SOL` : "Loading..."}
+                    {solBalance !== null ? `${solBalance} SOL` : "Loading..."}
+                  </p>
+                </div>
+
+                <div className="mt-4">
+                  <p className="text-sm text-gray-600">USDC Balance:</p>
+                  <p className="text-sm font-mono text-gray-900">
+                    {usdcBalance !== null ? `${usdcBalance} USDC` : "Loading..."}
                   </p>
                 </div>
 
