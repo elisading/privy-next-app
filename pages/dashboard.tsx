@@ -1,7 +1,7 @@
 import { useRouter } from "next/router";
 import { useEffect, useRef, useState } from "react";
 import {  getAccessToken, usePrivy, useSolanaWallets, type WalletWithMetadata} from "@privy-io/react-auth";
-import { clusterApiUrl, Connection, PublicKey, SystemProgram, Transaction, TransactionInstruction } from "@solana/web3.js";
+import { clusterApiUrl, Connection, PublicKey, SystemProgram, Transaction, SYSVAR_RENT_PUBKEY, TransactionInstruction, Keypair, sendAndConfirmTransaction } from "@solana/web3.js";
 import { getAssociatedTokenAddress, getAccount, TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import * as crypto from 'crypto';
 import Head from "next/head";
@@ -217,56 +217,28 @@ export default function DashboardPage() {
 
   }
 
-  // const getInstructionData = (gameId: string, wagerAmount: number) => {
-  //   const gameIdBuffer = Buffer.from(gameId, 'utf-8');
-  //   const gameIdLengthBuffer = Buffer.alloc(4);
-  //   gameIdLengthBuffer.writeUInt32LE(gameIdBuffer.length, 0);
-
-  //   const wagerAmountBuffer = Buffer.alloc(8);
-  //   wagerAmountBuffer.writeBigUInt64LE(BigInt(wagerAmount), 0);
-
-  //   const instructionData = Buffer.concat([gameIdLengthBuffer, gameIdBuffer, wagerAmountBuffer]);
-  //   return instructionData;
-  // };
-
-  // const getInstructionData = (gameId: string, wagerAmount: number) => {
-  //   const instructionName = 'player1_deposit';
-  //   const discriminator = crypto
-  //     .createHash('sha256')
-  //     .update('global:' + instructionName)
-  //     .digest()
-  //     .slice(0, 8);
-  //   const gameIdBuffer = Buffer.from(gameId, 'utf-8');
-  //   const gameIdLengthBuffer = Buffer.alloc(4);
-  //   gameIdLengthBuffer.writeUInt32LE(gameIdBuffer.length, 0);
-  //   const wagerAmountBuffer = Buffer.alloc(8);
-  //   wagerAmountBuffer.writeBigUInt64LE(BigInt(wagerAmount), 0);
-  //   const instructionData = Buffer.concat([
-  //     discriminator,
-  //     gameIdLengthBuffer,
-  //     gameIdBuffer,
-  //     wagerAmountBuffer
-  //   ]);
-  //   return instructionData;
-  // };
 
   const getInstructionData = (gameId: string, wagerAmount: number) => {
-    const gameIdBuffer = Buffer.from(gameId, 'utf-8');
-    const gameIdLengthBuffer = Buffer.alloc(4);
-    gameIdLengthBuffer.writeUInt32LE(gameIdBuffer.length, 0);
-  
-    const wagerAmountBuffer = Buffer.alloc(8);
-    wagerAmountBuffer.writeBigUInt64LE(BigInt(wagerAmount), 0);
-  
-    // Calculate the discriminator for the method
-    const methodName = "global:player1_deposit";
-    const hash = crypto.createHash('sha256').update(methodName).digest('hex');
-    const discriminator = Buffer.from(hash, 'hex').slice(0, 8);  // First 8 bytes of the hash
-  
-    // Concatenate the discriminator with the gameId and wagerAmount
-    const instructionData = Buffer.concat([discriminator, gameIdLengthBuffer, gameIdBuffer, wagerAmountBuffer]);
-    
-    return instructionData;
+
+  const methodName = 'global:player1_deposit';
+  const discriminator = crypto.createHash('sha256').update(methodName).digest().slice(0, 8);
+
+  // Serialize the game ID and wager amount
+  const gameIdBuffer = Buffer.from(gameId, 'utf8');
+  const gameIdLengthBuffer = Buffer.alloc(4);
+  gameIdLengthBuffer.writeUInt32LE(gameIdBuffer.length, 0);
+
+  const wagerAmountBuffer = Buffer.alloc(8);
+  wagerAmountBuffer.writeBigUInt64LE(BigInt(wagerAmount), 0);
+
+  const instructionData = Buffer.concat([
+    discriminator,
+    gameIdLengthBuffer,
+    gameIdBuffer,
+    wagerAmountBuffer,
+  ]);
+  console.log("instructionData", instructionData);
+  return instructionData;
   };
   
   const handlePlayerDeposit = async (instructionData: Buffer, gameId: string) => {
@@ -274,38 +246,51 @@ export default function DashboardPage() {
     if (playerWallet) {
       const programId = new PublicKey('7HFBvvE6nBnasydt1pEXBdRjmrJ7qSn2ZpreGfNQ9KUS');
       console.log('Program ID:', programId);
-      const usdcMintAddress = new PublicKey('4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU');
+      const usdcMint = new PublicKey('4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU');
       const connection = new Connection(clusterApiUrl('devnet'));
-      const playerPubkey = new PublicKey(playerWallet.address);
-      const [gameAccountPDA] = await PublicKey.findProgramAddressSync(
+      const playerPublicKey = new PublicKey(playerWallet.address);
+      const [gameAccountPDA] = await PublicKey.findProgramAddress(
         [Buffer.from(gameId)],
         programId
       );
-      const [escrowTokenAccountPDA] = await PublicKey.findProgramAddressSync(
+      console.log('Game Account PDA:', gameAccountPDA.toBase58());
+
+      const [escrowTokenAccountPDA] = await PublicKey.findProgramAddress(
         [Buffer.from('escrow'), Buffer.from(gameId)],
         programId
       );
-      const player1TokenAccount = await getAssociatedTokenAddress(usdcMintAddress, playerPubkey);
+      console.log('Escrow Token Account PDA:', escrowTokenAccountPDA.toBase58());
+      const playerTokenAccount = await getAssociatedTokenAddress(usdcMintAddress, playerPublicKey);
+
+      const accounts = [
+        { pubkey: playerPublicKey, isSigner: true, isWritable: true },
+        { pubkey: gameAccountPDA, isSigner: false, isWritable: true },
+        { pubkey: escrowTokenAccountPDA, isSigner: false, isWritable: true },
+        { pubkey: playerTokenAccount, isSigner: false, isWritable: true },
+        { pubkey: usdcMint, isSigner: false, isWritable: false },
+        { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+        { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+        { pubkey: SYSVAR_RENT_PUBKEY, isSigner: false, isWritable: false },
+      ];
+
       const instruction = new TransactionInstruction({
-        keys: [
-          { pubkey: playerPubkey, isSigner: true, isWritable: true }, // Player1's wallet
-          { pubkey: gameAccountPDA, isSigner: false, isWritable: true }, // Game account PDA
-          { pubkey: escrowTokenAccountPDA, isSigner: false, isWritable: true }, // Escrow token account PDA
-          { pubkey: player1TokenAccount, isSigner: false, isWritable: true }, // Player1's USDC token account
-          { pubkey: usdcMintAddress, isSigner: false, isWritable: false }, // USDC Mint address
-          { pubkey: SystemProgram.programId, isSigner: false, isWritable: false }, // System Program
-          { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },  // Solana token program
-          { pubkey: SystemProgram.programId, isSigner: false, isWritable: false }  // System Program
-        ],
+        keys: accounts,
         programId,
-        data: instructionData
+        data: instructionData,
       });
+      console.log('Transaction instruction created.');
+
+
       const transaction = new Transaction().add(instruction);
       const { blockhash } = await connection.getLatestBlockhash();
       transaction.recentBlockhash = blockhash;
-      transaction.feePayer = playerPubkey;
+      transaction.feePayer = playerPublicKey;
       console.log('Transaction object:', transaction);
-      const txHash = await playerWallet.sendTransaction!(transaction, connection);
+      const signedTx = await playerWallet.signTransaction!(transaction);
+      console.log('Transaction signed:', signedTx);
+      const txHash = await connection.sendRawTransaction(signedTx.serialize());
+      console.log("TX Hash:", txHash);
+
       sendUserEvent({ eventType: 'deposit', data: { tx: txHash } });
       setTransactionResult(txHash);
     } else {

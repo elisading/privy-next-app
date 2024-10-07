@@ -19,6 +19,7 @@
     "@solana/spl-token": "^0.4.8",
     "@tailwindcss/forms": "^0.5.3",
     "bottleneck": "^2.19.5",
+    "bs58": "^4.0.1",
     "next": "latest",
     "react": "18.2.0",
     "react-dom": "18.2.0"
@@ -27,6 +28,7 @@
     "@tsconfig/next": "^2.0.0",
     "@tsconfig/node18": "^18.2.0",
     "@tsconfig/strictest": "^2.0.1",
+    "@types/bs58": "^4.0.4",
     "@types/node": "^18",
     "@types/react": "18.2.0",
     "autoprefixer": "^10.4.7",
