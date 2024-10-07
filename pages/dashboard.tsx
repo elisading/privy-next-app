@@ -1,7 +1,7 @@
 import { useRouter } from "next/router";
 import { useEffect, useRef, useState } from "react";
 import {  getAccessToken, usePrivy, useSolanaWallets, type WalletWithMetadata} from "@privy-io/react-auth";
-import { clusterApiUrl, Connection, PublicKey, SystemProgram, Transaction, SYSVAR_RENT_PUBKEY, TransactionInstruction, Keypair, sendAndConfirmTransaction } from "@solana/web3.js";
+import { clusterApiUrl, Connection, PublicKey, SystemProgram, Transaction, SYSVAR_RENT_PUBKEY, TransactionInstruction} from "@solana/web3.js";
 import { getAssociatedTokenAddress, getAccount, TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import * as crypto from 'crypto';
 import Head from "next/head";
@@ -49,11 +49,6 @@ export default function DashboardPage() {
   useEffect(() => {
     solanaWalletRef.current = solanaWallet;
   }, [solanaWallet]);
-  // useEffect(() => {
-  //   if (wallets.length > 0 && wallets[0]) {
-  //     setSolanaWallet(wallets[0] as ConnectedSolanaWallet); // Set solanaWallet state
-  //   }
-  // }, [wallets]);
 
   useEffect(() => {
     if (ready && !authenticated) {
@@ -100,7 +95,6 @@ export default function DashboardPage() {
     console.log("instructionData", instructionData);
     handlePlayerDeposit(instructionData, gameId);
 
-    // handleSendTransaction();
       
     } 
 
@@ -179,7 +173,6 @@ export default function DashboardPage() {
     }
   }
 
-  // const {exportWallet} = useSolanaWallets();
 
   function ExportWalletButton() {
     const {ready, authenticated, user} = usePrivy();
@@ -298,60 +291,11 @@ export default function DashboardPage() {
     }
   };
 
-  // const handlePlayerDeposit = async (instructionData: Buffer, gameId: String) => {
-  //   const playerWallet = solanaWalletRef.current;
-
-  //   if(playerWallet) {
-  //   const programId = new PublicKey('7HFBvvE6nBnasydt1pEXBdRjmrJ7qSn2ZpreGfNQ9KUS');
-  //   const usdcMintAddress = new PublicKey('4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU'); 
-  //   const connection = new Connection(clusterApiUrl("devnet"));
-  //   const playerPubkey = new PublicKey(playerWallet.address);
-
-  //   const [gameAccountPDA] = await PublicKey.findProgramAddressSync([Buffer.from(gameId)], programId);
-  //   const [escrowTokenAccountPDA] = await PublicKey.findProgramAddressSync([Buffer.from('escrow'), Buffer.from(gameId)], programId);
-
-  //   const player1TokenAccount = await getAssociatedTokenAddress(usdcMintAddress, playerPubkey);
-
-  //   const instruction = new TransactionInstruction({
-  //     keys: [
-  //       { pubkey: playerPubkey, isSigner: true, isWritable: true },  // Player1's wallet
-  //       { pubkey: gameAccountPDA, isSigner: false, isWritable: true },  // Game account PDA
-  //       { pubkey: escrowTokenAccountPDA, isSigner: false, isWritable: true },  // Escrow token account PDA
-  //       { pubkey: player1TokenAccount, isSigner: false, isWritable: true },  // Player1's USDC token account
-  //       { pubkey: usdcMintAddress, isSigner: false, isWritable: false },  // USDC Mint address
-  //       { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },  // Solana token program
-  //       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false }  // System Program
-  //     ],
-  //     programId,
-  //     data: Buffer.from(instructionData) 
-  //   });
-
-  //   const transaction = new Transaction().add(instruction);
-  //   const { blockhash } = await connection.getLatestBlockhash();
-  //   transaction.recentBlockhash = blockhash;
-  //   transaction.feePayer = playerPubkey;
-
-  //   console.log("Transaction object:", transaction);
-  //   const txHash = await playerWallet.sendTransaction!(transaction, connection);
-  //   sendUserEvent({eventType: "deposit", data: {tx: txHash}});
-
-  //   setTransactionResult(txHash);
-
-  //   } else {
-  //      console.log("failed to send")
-  //   }
-  // };      
-
   // Handle sending a Solana transaction
   const handleSendTransaction = async () => {
     try {
       setLoading(true);
 
-      // console.log("solanaWallet", solanaWallet);
-      // if (!solanaWallet) {
-      //   console.log("No wallet found");
-      //   return false
-      // }
       const currentWallet = solanaWalletRef.current;
 
       if (currentWallet) {
