@@ -1,7 +1,9 @@
 import { useRouter } from "next/router";
 import { useEffect, useRef, useState } from "react";
 import {  getAccessToken, usePrivy, useSolanaWallets, type WalletWithMetadata} from "@privy-io/react-auth";
-import { clusterApiUrl, Connection, PublicKey, SystemProgram, Transaction } from "@solana/web3.js";
+import { clusterApiUrl, Connection, PublicKey, SystemProgram, Transaction, SYSVAR_RENT_PUBKEY, TransactionInstruction} from "@solana/web3.js";
+import { getAssociatedTokenAddress, getAccount, TOKEN_PROGRAM_ID } from '@solana/spl-token';
+import * as crypto from 'crypto';
 import Head from "next/head";
 import Bottleneck from "bottleneck";
 
@@ -22,7 +24,9 @@ export default function DashboardPage() {
   const [transactionResult, setTransactionResult] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0); // Trigger for refreshing user object
-  const [balance, setBalance] = useState<number | null>(null);
+  const [solBalance, setSolBalance] = useState<number | null>(null);
+  const [usdcBalance, setUsdcBalance] = useState<number | null>(null);
+  const usdcMintAddress = new PublicKey('4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU'); 
   // const [solanaWallet, setSolanaWallet] = useState<ConnectedSolanaWallet | null>(null);
 
   const router = useRouter();
@@ -45,11 +49,6 @@ export default function DashboardPage() {
   useEffect(() => {
     solanaWalletRef.current = solanaWallet;
   }, [solanaWallet]);
-  // useEffect(() => {
-  //   if (wallets.length > 0 && wallets[0]) {
-  //     setSolanaWallet(wallets[0] as ConnectedSolanaWallet); // Set solanaWallet state
-  //   }
-  // }, [wallets]);
 
   useEffect(() => {
     if (ready && !authenticated) {
@@ -88,11 +87,14 @@ export default function DashboardPage() {
     console.log("Event received:", event);
     if (event.eventType === "deposit") {
       console.log("Deposit event received:", event);
-    // const { player, gameId, betAmount } = event.data;
-    // console.log(player, gameId, betAmount);
-    console.log("inside event handler   ", solanaWallet);
+    const { gameId, betAmount } = event.data;
+    console.log( gameId, betAmount);
+    console.log("inside event handler   ", solanaWalletRef.current);
 
-    handleSendTransaction();
+    const instructionData = getInstructionData(gameId, betAmount);
+    console.log("instructionData", instructionData);
+    handlePlayerDeposit(instructionData, gameId);
+
       
     } 
 
@@ -111,7 +113,13 @@ export default function DashboardPage() {
           const connection = new Connection(clusterApiUrl("devnet"));
           const walletPublicKey = new PublicKey(solanaWallet.address);
           const balance = await limiter.schedule(() => connection.getBalance(walletPublicKey));
-          setBalance(balance / 1_000_000_000); // Convert lamports to SOL
+          setSolBalance(balance / 1_000_000_000); // Convert lamports to SOL
+
+          const usdcTokenAddress = await getAssociatedTokenAddress(usdcMintAddress, walletPublicKey);
+          const usdcAccount = await getAccount(connection, usdcTokenAddress, "confirmed", TOKEN_PROGRAM_ID);
+          const usdcBalance = Number(usdcAccount.amount) / 1e6;
+          setUsdcBalance(usdcBalance);
+
         } catch (error) {
           console.error("Failed to fetch wallet balance:", error);
         } finally {
@@ -165,7 +173,6 @@ export default function DashboardPage() {
     }
   }
 
-  // const {exportWallet} = useSolanaWallets();
 
   function ExportWalletButton() {
     const {ready, authenticated, user} = usePrivy();
@@ -201,20 +208,94 @@ export default function DashboardPage() {
     console.log("failed to post", win)
   }
 
-
-
   }
+
+
+  const getInstructionData = (gameId: string, wagerAmount: number) => {
+
+  const methodName = 'global:player1_deposit';
+  const discriminator = crypto.createHash('sha256').update(methodName).digest().slice(0, 8);
+
+  // Serialize the game ID and wager amount
+  const gameIdBuffer = Buffer.from(gameId, 'utf8');
+  const gameIdLengthBuffer = Buffer.alloc(4);
+  gameIdLengthBuffer.writeUInt32LE(gameIdBuffer.length, 0);
+
+  const wagerAmountBuffer = Buffer.alloc(8);
+  wagerAmountBuffer.writeBigUInt64LE(BigInt(wagerAmount), 0);
+
+  const instructionData = Buffer.concat([
+    discriminator,
+    gameIdLengthBuffer,
+    gameIdBuffer,
+    wagerAmountBuffer,
+  ]);
+  console.log("instructionData", instructionData);
+  return instructionData;
+  };
+  
+  const handlePlayerDeposit = async (instructionData: Buffer, gameId: string) => {
+    const playerWallet = solanaWalletRef.current;
+    if (playerWallet) {
+      const programId = new PublicKey('7HFBvvE6nBnasydt1pEXBdRjmrJ7qSn2ZpreGfNQ9KUS');
+      console.log('Program ID:', programId);
+      const usdcMint = new PublicKey('4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU');
+      const connection = new Connection(clusterApiUrl('devnet'));
+      const playerPublicKey = new PublicKey(playerWallet.address);
+      const [gameAccountPDA] = await PublicKey.findProgramAddress(
+        [Buffer.from(gameId)],
+        programId
+      );
+      console.log('Game Account PDA:', gameAccountPDA.toBase58());
+
+      const [escrowTokenAccountPDA] = await PublicKey.findProgramAddress(
+        [Buffer.from('escrow'), Buffer.from(gameId)],
+        programId
+      );
+      console.log('Escrow Token Account PDA:', escrowTokenAccountPDA.toBase58());
+      const playerTokenAccount = await getAssociatedTokenAddress(usdcMintAddress, playerPublicKey);
+
+      const accounts = [
+        { pubkey: playerPublicKey, isSigner: true, isWritable: true },
+        { pubkey: gameAccountPDA, isSigner: false, isWritable: true },
+        { pubkey: escrowTokenAccountPDA, isSigner: false, isWritable: true },
+        { pubkey: playerTokenAccount, isSigner: false, isWritable: true },
+        { pubkey: usdcMint, isSigner: false, isWritable: false },
+        { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+        { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+        { pubkey: SYSVAR_RENT_PUBKEY, isSigner: false, isWritable: false },
+      ];
+
+      const instruction = new TransactionInstruction({
+        keys: accounts,
+        programId,
+        data: instructionData,
+      });
+      console.log('Transaction instruction created.');
+
+
+      const transaction = new Transaction().add(instruction);
+      const { blockhash } = await connection.getLatestBlockhash();
+      transaction.recentBlockhash = blockhash;
+      transaction.feePayer = playerPublicKey;
+      console.log('Transaction object:', transaction);
+      const signedTx = await playerWallet.signTransaction!(transaction);
+      console.log('Transaction signed:', signedTx);
+      const txHash = await connection.sendRawTransaction(signedTx.serialize());
+      console.log("TX Hash:", txHash);
+
+      sendUserEvent({ eventType: 'deposit', data: { tx: txHash } });
+      setTransactionResult(txHash);
+    } else {
+      console.log('Failed to send transaction');
+    }
+  };
 
   // Handle sending a Solana transaction
   const handleSendTransaction = async () => {
     try {
       setLoading(true);
 
-      // console.log("solanaWallet", solanaWallet);
-      // if (!solanaWallet) {
-      //   console.log("No wallet found");
-      //   return false
-      // }
       const currentWallet = solanaWalletRef.current;
 
       if (currentWallet) {
@@ -301,7 +382,14 @@ export default function DashboardPage() {
                 <div className="mt-4">
                   <p className="text-sm text-gray-600">Balance:</p>
                   <p className="text-sm font-mono text-gray-900">
-                    {balance !== null ? `${balance} SOL` : "Loading..."}
+                    {solBalance !== null ? `${solBalance} SOL` : "Loading..."}
+                  </p>
+                </div>
+
+                <div className="mt-4">
+                  <p className="text-sm text-gray-600">USDC Balance:</p>
+                  <p className="text-sm font-mono text-gray-900">
+                    {usdcBalance !== null ? `${usdcBalance} USDC` : "Loading..."}
                   </p>
                 </div>
 
