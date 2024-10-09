@@ -1,0 +1,467 @@
+
+{
+    "version": "0.1.0",
+    "name": "wager_game",
+    "instructions": [
+    {
+    "name": "initialize",
+    "accounts": [
+    {
+    "name": "payer",
+    "isMut": true,
+    "isSigner": true
+    },
+    {
+    "name": "config",
+    "isMut": true,
+    "isSigner": false
+    },
+    {
+    "name": "systemProgram",
+    "isMut": false,
+    "isSigner": false
+    }
+    ],
+    "args": [
+    {
+    "name": "admin",
+    "type": "publicKey"
+    },
+    {
+    "name": "contractFeeAccount",
+    "type": "publicKey"
+    },
+    {
+    "name": "gameDeveloperFeeAccount",
+    "type": "publicKey"
+    }
+    ]
+    },
+    {
+    "name": "player1Deposit",
+    "accounts": [
+    {
+    "name": "player1",
+    "isMut": true,
+    "isSigner": true
+    },
+    {
+    "name": "gameAccount",
+    "isMut": true,
+    "isSigner": false
+    },
+    {
+    "name": "escrowTokenAccount",
+    "isMut": true,
+    "isSigner": false
+    },
+    {
+    "name": "player1TokenAccount",
+    "isMut": true,
+    "isSigner": false
+    },
+    {
+    "name": "usdcMint",
+    "isMut": false,
+    "isSigner": false
+    },
+    {
+    "name": "systemProgram",
+    "isMut": false,
+    "isSigner": false
+    },
+    {
+    "name": "tokenProgram",
+    "isMut": false,
+    "isSigner": false
+    },
+    {
+    "name": "rent",
+    "isMut": false,
+    "isSigner": false
+    }
+    ],
+    "args": [
+    {
+    "name": "gameId",
+    "type": "string"
+    },
+    {
+    "name": "wagerAmount",
+    "type": "u64"
+    }
+    ]
+    },
+    {
+    "name": "player2Deposit",
+    "accounts": [
+    {
+    "name": "player2",
+    "isMut": true,
+    "isSigner": true
+    },
+    {
+    "name": "gameAccount",
+    "isMut": true,
+    "isSigner": false
+    },
+    {
+    "name": "escrowTokenAccount",
+    "isMut": true,
+    "isSigner": false
+    },
+    {
+    "name": "player2TokenAccount",
+    "isMut": true,
+    "isSigner": false
+    },
+    {
+    "name": "usdcMint",
+    "isMut": false,
+    "isSigner": false
+    },
+    {
+    "name": "systemProgram",
+    "isMut": false,
+    "isSigner": false
+    },
+    {
+    "name": "tokenProgram",
+    "isMut": false,
+    "isSigner": false
+    },
+    {
+    "name": "rent",
+    "isMut": false,
+    "isSigner": false
+    }
+    ],
+    "args": [
+    {
+    "name": "gameId",
+    "type": "string"
+    },
+    {
+    "name": "wagerAmount",
+    "type": "u64"
+    }
+    ]
+    },
+    {
+    "name": "finalizeGame",
+    "accounts": [
+    {
+    "name": "admin",
+    "isMut": false,
+    "isSigner": true
+    },
+    {
+    "name": "config",
+    "isMut": false,
+    "isSigner": false
+    },
+    {
+    "name": "gameAccount",
+    "isMut": true,
+    "isSigner": false
+    },
+    {
+    "name": "player1TokenAccount",
+    "isMut": true,
+    "isSigner": false
+    },
+    {
+    "name": "player2TokenAccount",
+    "isMut": true,
+    "isSigner": false
+    },
+    {
+    "name": "escrowTokenAccount",
+    "isMut": true,
+    "isSigner": false
+    },
+    {
+    "name": "contractFeeAccount",
+    "isMut": true,
+    "isSigner": false
+    },
+    {
+    "name": "gameDeveloperFeeAccount",
+    "isMut": true,
+    "isSigner": false
+    },
+    {
+    "name": "tokenProgram",
+    "isMut": false,
+    "isSigner": false
+    }
+    ],
+    "args": [
+    {
+    "name": "gameId",
+    "type": "string"
+    },
+    {
+    "name": "winner",
+    "type": "u8"
+    }
+    ]
+    },
+    {
+    "name": "cancelGame",
+    "accounts": [
+    {
+    "name": "admin",
+    "isMut": false,
+    "isSigner": true
+    },
+    {
+    "name": "config",
+    "isMut": false,
+    "isSigner": false
+    },
+    {
+    "name": "gameAccount",
+    "isMut": true,
+    "isSigner": false
+    },
+    {
+    "name": "escrowTokenAccount",
+    "isMut": true,
+    "isSigner": false
+    },
+    {
+    "name": "tokenProgram",
+    "isMut": false,
+    "isSigner": false
+    },
+    {
+    "name": "player1TokenAccount",
+    "isMut": true,
+    "isSigner": false,
+    "isOptional": true
+    },
+    {
+    "name": "player2TokenAccount",
+    "isMut": true,
+    "isSigner": false,
+    "isOptional": true
+    }
+    ],
+    "args": [
+    {
+    "name": "gameId",
+    "type": "string"
+    }
+    ]
+    },
+    {
+    "name": "getGameStatus",
+    "accounts": [
+    {
+    "name": "gameAccount",
+    "isMut": false,
+    "isSigner": false
+    }
+    ],
+    "args": [
+    {
+    "name": "gameId",
+    "type": "string"
+    }
+    ],
+    "returns": {
+    "defined": "GameState"
+    }
+    }
+    ],
+    "accounts": [
+    {
+    "name": "GameAccount",
+    "type": {
+    "kind": "struct",
+    "fields": [
+    {
+    "name": "gameId",
+    "type": "string"
+    },
+    {
+    "name": "player1",
+    "type": {
+    "option": {
+    "defined": "PlayerInfo"
+    }
+    }
+    },
+    {
+    "name": "player2",
+    "type": {
+    "option": {
+    "defined": "PlayerInfo"
+    }
+    }
+    },
+    {
+    "name": "wagerAmount",
+    "type": "u64"
+    },
+    {
+    "name": "state",
+    "type": {
+    "defined": "GameState"
+    }
+    },
+    {
+    "name": "bump",
+    "type": "u8"
+    }
+    ]
+    }
+    },
+    {
+    "name": "Config",
+    "type": {
+    "kind": "struct",
+    "fields": [
+    {
+    "name": "admin",
+    "type": "publicKey"
+    },
+    {
+    "name": "bump",
+    "type": "u8"
+    },
+    {
+    "name": "contractFeeAccount",
+    "type": "publicKey"
+    },
+    {
+    "name": "gameDeveloperFeeAccount",
+    "type": "publicKey"
+    }
+    ]
+    }
+    }
+    ],
+    "types": [
+    {
+    "name": "PlayerInfo",
+    "type": {
+    "kind": "struct",
+    "fields": [
+    {
+    "name": "pubkey",
+    "type": "publicKey"
+    },
+    {
+    "name": "tokenAccount",
+    "type": "publicKey"
+    }
+    ]
+    }
+    },
+    {
+    "name": "GameState",
+    "type": {
+    "kind": "enum",
+    "variants": [
+    {
+    "name": "WaitingForPlayer1"
+    },
+    {
+    "name": "WaitingForPlayer2"
+    },
+    {
+    "name": "ReadyForFinalization"
+    },
+    {
+    "name": "Completed"
+    },
+    {
+    "name": "Canceled"
+    }
+    ]
+    }
+    }
+    ],
+    "errors": [
+    {
+    "code": 6000,
+    "name": "PlayerAlreadyDeposited",
+    "msg": "Player has already deposited."
+    },
+    {
+    "code": 6001,
+    "name": "InvalidGameState",
+    "msg": "Invalid game state."
+    },
+    {
+    "code": 6002,
+    "name": "InvalidGameStateForCancellation",
+    "msg": "Invalid game state for cancellation."
+    },
+    {
+    "code": 6003,
+    "name": "InvalidWinner",
+    "msg": "Invalid winner."
+    },
+    {
+    "code": 6004,
+    "name": "MismatchedWagerAmount",
+    "msg": "Mismatched wager amount."
+    },
+    {
+    "code": 6005,
+    "name": "InvalidWagerAmount",
+    "msg": "Invalid wager amount."
+    },
+    {
+    "code": 6006,
+    "name": "Overflow",
+    "msg": "Arithmetic overflow occurred."
+    },
+    {
+    "code": 6007,
+    "name": "Underflow",
+    "msg": "Arithmetic underflow occurred."
+    },
+    {
+    "code": 6008,
+    "name": "Unauthorized",
+    "msg": "Unauthorized access."
+    },
+    {
+    "code": 6009,
+    "name": "InsufficientFunds",
+    "msg": "Insufficient funds."
+    },
+    {
+    "code": 6010,
+    "name": "InvalidPlayer1TokenAccount",
+    "msg": "Invalid Player1 token account."
+    },
+    {
+    "code": 6011,
+    "name": "InvalidPlayer2TokenAccount",
+    "msg": "Invalid Player2 token account."
+    },
+    {
+    "code": 6012,
+    "name": "MissingPlayer1TokenAccount",
+    "msg": "Missing Player1 token account."
+    },
+    {
+    "code": 6013,
+    "name": "MissingPlayer2TokenAccount",
+    "msg": "Missing Player2 token account."
+    },
+    {
+    "code": 6014,
+    "name": "InvalidGameId",
+    "msg": "Invalid game ID."
+    }
+    ],
+    "metadata": {
+    "address": "7HFBvvE6nBnasydt1pEXBdRjmrJ7qSn2ZpreGfNQ9KUS"
+    }
+    }

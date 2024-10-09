@@ -237,7 +237,10 @@ export default function DashboardPage() {
   const handlePlayerDeposit = async (instructionData: Buffer, gameId: string) => {
     const playerWallet = solanaWalletRef.current;
     if (playerWallet) {
-      const programId = new PublicKey('7HFBvvE6nBnasydt1pEXBdRjmrJ7qSn2ZpreGfNQ9KUS');
+      const programId = new PublicKey('7HFBvvE6nBnasydt1pEXBdRjmrJ7qSn2ZpreGfNQ9KUS'); // deposit works 
+      // const programId = new PublicKey('FcLJQfVzwpnCcsbRw5CH7mRufx1LY5zNnEFqnV9CzmCs');
+      // const programId = new PublicKey('9c4ZzoaLZGLTVeV7wh77xJriB3bpPs6woxagFsc8dGtx');
+      
       console.log('Program ID:', programId);
       const usdcMint = new PublicKey('4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU');
       const connection = new Connection(clusterApiUrl('devnet'));
